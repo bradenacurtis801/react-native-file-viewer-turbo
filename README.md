@@ -89,6 +89,8 @@ For example, if you know upfront that your app is supposed to open PDF files, th
 | **displayName** (optional)        | string        | iOS          | Customize the QuickLook title                                                                    |
 | **doneButtonTitle** (optional)    | string        | iOS          | Customize UINavigationController Done button title                                               |
 | **doneButtonPosition** (optional) | left \| right | iOS          | Customize UINavigationController Done button position                                            |
+| **modalPresentationStyle** (optional) | automatic \| pageSheet \| fullScreen \| formSheet | iOS | How the preview is presented. Defaults to `pageSheet` (the swipeable card look) — `.automatic`'s own resolution isn't guaranteed to be that in every app's presenting context, which is why this defaults away from it rather than deferring to it |
+| **disableInteractiveDismissal** (optional) | boolean | iOS | Require an explicit Done tap to close the preview instead of also allowing swipe-down/tap-outside. Defaults to `false` |
 | **onDismiss** (optional)          | function      | iOS, Android | Callback invoked when the viewer is being dismissed                                              |
 | **showOpenWithDialog** (optional) | boolean       | Android      | If there is more than one app that can open the file, show an _Open With_ dialogue box           |
 | **showAppsSuggestions** (optional) | boolean       | Android      | If there is not an installed app that can open the file, open the Play Store with suggested apps |

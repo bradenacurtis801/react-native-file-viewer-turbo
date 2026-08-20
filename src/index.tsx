@@ -1,6 +1,17 @@
 import FileViewerTurbo, { type Options } from './NativeFileViewerTurbo';
 import type { EventSubscription } from 'react-native';
 
+// Re-exported so callers can actually reference these enum types — TS
+// string enums are nominal, not structural, so without this a caller
+// couldn't pass `doneButtonPosition`/`modalPresentationStyle` in a
+// type-safe way at all (a plain string literal isn't assignable to an enum
+// type even when the values match).
+export {
+  DoneButtonPosition,
+  ModalPresentationStyle,
+} from './NativeFileViewerTurbo';
+export type { Options } from './NativeFileViewerTurbo';
+
 let dismissListener: EventSubscription | null = null;
 
 export async function open(

@@ -33,6 +33,8 @@
 @property(nonatomic, strong) File *file;
 @property(nonatomic, strong) NSNumber *invocation;
 
+- (void)dismissView:(id)sender;
+
 @end
 
 @implementation CustomQLViewController
@@ -44,6 +46,24 @@
         self.dataSource = self;
     }
     return self;
+}
+
+// The Done button's target used to be `FileViewerTurbo` itself (a shared
+// module instance, not per-presentation) — its `dismissView:` re-derived
+// "whatever's topmost right now" via `+topViewController`'s heuristic
+// subview/responder walk at TAP time, instead of dismissing the specific
+// controller this invocation actually presented. That's fragile for
+// anything whose own content embeds a nested child view controller
+// QuickLook doesn't expose through the normal `presentedViewController`
+// chain — confirmed on device with a CSV (QuickLook's spreadsheet
+// renderer): the button animated but dismissed nothing, because
+// `topViewController` resolved to the wrong controller by then. `self`
+// here IS the exact presented controller, known at present-time —
+// dismissing through it can't drift the way a fresh top-of-hierarchy guess
+// can (`dismissViewControllerAnimated:` on anything in the presented chain
+// forwards to the actual presenter regardless).
+- (void)dismissView:(id)sender {
+    [self dismissViewControllerAnimated:YES completion:nil];
 }
 
 - (BOOL)prefersStatusBarHidden {
@@ -121,10 +141,6 @@ static NSNumber *invocationId = @33341;
     [self emitOnViewerDidDismiss];
 }
 
-- (void)dismissView:(id)sender {
-    [[FileViewerTurbo topViewController] dismissViewControllerAnimated:YES completion:nil];
-}
-
 RCT_EXPORT_MODULE(FileViewerTurbo)
 
 RCT_EXPORT_METHOD(open:(NSString *)path
@@ -136,27 +152,45 @@ RCT_EXPORT_METHOD(open:(NSString *)path
       NSString *displayName = options.displayName();
       NSString *doneButtonTitle = options.doneButtonTitle();
       NSString *doneButtonPosition = options.doneButtonPosition();
+      NSString *modalPresentationStyle = options.modalPresentationStyle();
+      BOOL disableInteractiveDismissal = options.disableInteractiveDismissal().value_or(false);
 
       File *file = [[File alloc] initWithPath:path title:displayName];
 
       QLPreviewController *controller = [[CustomQLViewController alloc] initWithFile:file identifier:invocationId];
-
-      if (@available(iOS 13.0, *)) {
-          [controller setModalInPresentation: true];
-      }
-
       controller.delegate = self;
 
       UINavigationController *navigationController = [[UINavigationController alloc] initWithRootViewController:controller];
 
-      if (@available(iOS 13.0, *)) {
-          [navigationController setModalInPresentation: true];
+      // `.automatic` isn't reliably `.pageSheet` in every app's own
+      // presenting view-controller context — some setups resolve it to
+      // `.fullScreen` instead, silently losing the swipeable card look and
+      // the dimmed peek of the app behind it. Set explicitly rather than
+      // depending on that resolution; `pageSheet` (the default here) is
+      // what most apps actually want QuickLook to look like.
+      if ([modalPresentationStyle isEqualToString:@"fullScreen"]) {
+        navigationController.modalPresentationStyle = UIModalPresentationFullScreen;
+      } else if ([modalPresentationStyle isEqualToString:@"formSheet"]) {
+        navigationController.modalPresentationStyle = UIModalPresentationFormSheet;
+      } else if ([modalPresentationStyle isEqualToString:@"automatic"]) {
+        navigationController.modalPresentationStyle = UIModalPresentationAutomatic;
+      } else {
+        navigationController.modalPresentationStyle = UIModalPresentationPageSheet;
       }
 
+      if (@available(iOS 13.0, *)) {
+          if (disableInteractiveDismissal) {
+            [controller setModalInPresentation: true];
+            [navigationController setModalInPresentation: true];
+          }
+      }
+
+      // Targets `controller` (this specific presentation), not `self` — see
+      // `CustomQLViewController.dismissView:`'s own doc comment for why.
       if (doneButtonTitle) {
-        buttonItem = [[UIBarButtonItem alloc] initWithTitle:doneButtonTitle style:UIBarButtonItemStylePlain target:self action:@selector(dismissView:)];
+        buttonItem = [[UIBarButtonItem alloc] initWithTitle:doneButtonTitle style:UIBarButtonItemStylePlain target:controller action:@selector(dismissView:)];
       } else {
-        buttonItem = [[UIBarButtonItem alloc] initWithBarButtonSystemItem:UIBarButtonSystemItemDone target:self action:@selector(dismissView:)];
+        buttonItem = [[UIBarButtonItem alloc] initWithBarButtonSystemItem:UIBarButtonSystemItemDone target:controller action:@selector(dismissView:)];
       }
 
       if ([doneButtonPosition isEqualToString: @"left"]) {
